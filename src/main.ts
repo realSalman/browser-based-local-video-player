@@ -1,70 +1,188 @@
-<!doctype html>
-<html lang="en">
+import './style.css'
+import videojs from 'video.js'
+import type Player from 'video.js/dist/types/player'
 
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Video Player</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-</head>
+// Elements
+const dropOverlay = document.getElementById('drop-overlay') as HTMLDivElement
+const dropZoneBox = document.getElementById('drop-zone-box') as HTMLDivElement
+const fileInput = document.getElementById('file-input') as HTMLInputElement
+const videoContainer = document.getElementById('video-container') as HTMLDivElement
+const videoElement = document.getElementById('my-video') as HTMLVideoElement
+const closeVideoBtn = document.getElementById('close-video-btn') as HTMLButtonElement
 
-<body>
-  <div id="app">
+let player: Player | null = null
+let currentObjectUrl: string | null = null
+let dragCounter = 0
 
-    <!-- Video Container -->
-    <div id="video-container" class="hidden">
-      <!-- Close Button -->
-      <button id="close-video-btn"
-        class="absolute top-4 right-4 z-[100] bg-black/60 hover:bg-black/90 text-white rounded-full p-2 transition-all duration-300 shadow-lg cursor-pointer">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+// Initialize Drag & Drop Events
+function initDragAndDrop() {
+  // Prevent default behaviors for drag events on the whole document
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.addEventListener(eventName, preventDefaults, false)
+  })
 
-      <video id="my-video" class="video-js vjs-default-skin" controls preload="auto" width="100%" height="100%">
-        <p class="vjs-no-js">
-          To view this video please enable JavaScript, and consider upgrading to a
-          web browser that supports HTML5 video.
-        </p>
-      </video>
-    </div>
+  document.addEventListener('dragenter', (e) => {
+    if (e.dataTransfer?.types.includes('Files')) {
+      dragCounter++;
+      dropOverlay.classList.add('dragging')
+    }
+  })
 
-    <!-- Drag & Drop Overlay (Persistent) -->
-    <div id="drop-overlay" class="empty-state">
-      <div id="drop-zone-box">
-        <svg xmlns="http://www.w3.org/2000/svg"
-          class="h-16 w-16 mb-4 text-neutral-500 transition-transform duration-300 icon" fill="none" viewBox="0 0 24 24"
-          stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-        </svg>
-        <h2 class="text-xl font-medium text-white mb-2 text-center">Drag & Drop or Click Here</h2>
-        <p class="text-sm text-center">Play local video files instantly.</p>
-        <input type="file" id="file-input" class="hidden" />
-      </div>
-    </div>
+  document.addEventListener('dragover', (e) => {
+    if (e.dataTransfer?.types.includes('Files')) {
+      dropOverlay.classList.add('dragging')
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  })
 
-  </div>
-  <!-- Confirm Close Modal -->
-  <div id="confirm-modal"
-    class="hidden fixed inset-0 z-[200] bg-black/75 flex items-center justify-center backdrop-blur-sm">
-    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl text-center">
-      <h3 class="text-lg font-semibold text-white mb-2">Close Video?</h3>
-      <p class="text-neutral-400 text-sm mb-6">Are you sure you want to stop playback and return?</p>
-      <div class="flex justify-center gap-3">
-        <button id="confirm-cancel-btn"
-          class="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-medium transition-colors cursor-pointer text-sm">Cancel</button>
-        <button id="confirm-close-btn"
-          class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors cursor-pointer text-sm">Close
-          Video</button>
-      </div>
-    </div>
-  </div>
+  // Hide overlay when leaving window
+  document.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter === 0) {
+      dropOverlay.classList.remove('dragging')
+    }
+  })
 
-  <script type="module" src="/src/main.ts"></script>
-</body>
+  // Handle drop
+  document.addEventListener('drop', handleDrop, false)
 
-</html>
+  // Handle click to open
+  dropZoneBox.addEventListener('click', () => {
+    fileInput.click()
+  })
+
+  fileInput.addEventListener('change', (e) => {
+    const files = (e.target as HTMLInputElement).files
+    if (files && files.length > 0) {
+      handleFile(files[0])
+      fileInput.value = '' // Reset input
+    }
+  })
+
+  // Handle Close Button
+  closeVideoBtn.addEventListener('click', () => {
+    if (player) {
+      player.pause()
+      player.src('')
+    }
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl)
+      currentObjectUrl = null
+    }
+
+    // Hide video, show drop zone
+    videoContainer.classList.add('hidden')
+    dropOverlay.classList.remove('overlay-state')
+    dropOverlay.classList.add('empty-state')
+  })
+}
+
+function preventDefaults(e: Event) {
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function handleDrop(e: DragEvent) {
+  dropOverlay.classList.remove('dragging')
+  dragCounter = 0 // Reset counter
+  
+  const dt = e.dataTransfer
+  if (!dt) return
+  
+  const files = dt.files
+  if (files.length > 0) {
+    handleFile(files[0])
+  }
+}
+
+function handleFile(file: File) {
+  // We want to try playing almost anything since user requested "all formats",
+  // though browsers naturally have limitations.
+  if (!file.type.startsWith('video/') && !file.name.match(/\.(mkv|avi|mp4|webm|ogg|mov)$/i)) {
+    console.warn('The dropped file does not appear to be a common video format, but we will try anyway.', file.name)
+  }
+
+  // Revoke old URL to avoid memory leak
+  if (currentObjectUrl) {
+    URL.revokeObjectURL(currentObjectUrl)
+  }
+
+  // Create new object URL
+  currentObjectUrl = URL.createObjectURL(file)
+
+  // Remove empty state from overlay so it only shows on drag
+  dropOverlay.classList.remove('empty-state')
+  videoContainer.classList.remove('hidden')
+
+  // Initialize or update Video.js player
+  if (!player) {
+    player = videojs(videoElement, {
+      controls: true,
+      autoplay: true,
+      preload: 'auto',
+      fluid: false, // We handle sizing via CSS
+      controlBar: {
+        skipButtons: {
+          forward: 10,
+          backward: 10
+        }
+      }
+    })
+  }
+
+  // Set the source and play
+  player.src({ type: file.type || 'video/mp4', src: currentObjectUrl })
+  player.ready(() => {
+    const activePlayer = player;
+    if (activePlayer) {
+      const playPromise = activePlayer.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => console.error("Error playing video:", err));
+      }
+    }
+  })
+}
+
+// Add Keyboard Shortcuts
+document.addEventListener('keydown', (e) => {
+  if (!player) return;
+
+  switch (e.key.toLowerCase()) {
+    case ' ':
+    case 'k':
+      e.preventDefault();
+      if (player.paused()) player.play();
+      else player.pause();
+      break;
+    case 'arrowleft':
+    case 'j':
+      e.preventDefault();
+      player.currentTime(Math.max(0, (player.currentTime() as number) - 10));
+      break;
+    case 'arrowright':
+    case 'l':
+      e.preventDefault();
+      player.currentTime((player.currentTime() as number) + 10);
+      break;
+    case 'arrowup':
+      e.preventDefault();
+      player.volume(Math.min(1, (player.volume() as number) + 0.1));
+      break;
+    case 'arrowdown':
+      e.preventDefault();
+      player.volume(Math.max(0, (player.volume() as number) - 0.1));
+      break;
+    case 'f':
+      e.preventDefault();
+      if (player.isFullscreen()) player.exitFullscreen();
+      else player.requestFullscreen();
+      break;
+    case 'm':
+      e.preventDefault();
+      player.muted(!player.muted());
+      break;
+  }
+});
+
+// Start
+initDragAndDrop()
