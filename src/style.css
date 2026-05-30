@@ -1,0 +1,89 @@
+@import "tailwindcss";
+@import "video.js/dist/video-js.css";
+
+/* Custom styles for our minimalist UI */
+body {
+  @apply bg-neutral-950 text-white m-0 p-0 overflow-hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+#app {
+  @apply w-screen h-screen flex flex-col items-center justify-center relative;
+}
+
+#video-container {
+  @apply w-full h-full relative flex items-center justify-center;
+}
+
+#video-container.hidden {
+  display: none;
+}
+
+/* Make Video.js player fill the container */
+.video-js {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: transparent;
+  font-size: 14px !important; /* Increase control bar size globally (default is 10px) */
+}
+
+/* Customizing the Video.js control bar for minimalist look */
+.video-js .vjs-control-bar {
+  @apply bg-black/60 backdrop-blur-md border-t border-white/10;
+}
+
+.video-js.vjs-has-started.vjs-user-inactive.vjs-playing .vjs-control-bar {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+.video-js .vjs-big-play-button {
+  @apply bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-white/20;
+  width: 80px !important;
+  height: 80px !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  margin: 0 !important;
+  border-radius: 50% !important;
+  line-height: 80px;
+}
+
+.video-js .vjs-big-play-button .vjs-icon-placeholder:before {
+  font-size: 40px;
+  line-height: 80px;
+}
+
+.video-js.vjs-has-started .vjs-big-play-button {
+  display: none !important;
+}
+
+/* The drag and drop overlay */
+#drop-overlay {
+  @apply absolute inset-0 z-50 pointer-events-none bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center opacity-0 transition-all duration-300;
+}
+
+/* When dragging over the window, show the overlay */
+#drop-overlay.dragging {
+  @apply opacity-100 pointer-events-auto;
+}
+
+/* When no video is loaded, show the overlay fully */
+#drop-overlay.empty-state {
+  @apply opacity-100 bg-neutral-950 pointer-events-auto;
+}
+
+#drop-zone-box {
+  @apply border-2 border-dashed border-neutral-600 rounded-2xl p-12 flex flex-col items-center justify-center text-neutral-400 transition-colors duration-300 bg-neutral-900/50 cursor-pointer;
+  width: min(90%, 600px);
+  aspect-ratio: 16/9;
+}
+
+#drop-overlay.dragging #drop-zone-box {
+  @apply border-blue-500 text-blue-400 bg-blue-500/10 scale-105;
+}
+
+#drop-overlay.dragging .icon {
+  @apply text-blue-400 scale-110;
+}
